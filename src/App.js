@@ -2,7 +2,7 @@ import * as THREE from "three"
 import { useRef, useMemo, useState } from "react"
 import { Canvas, useFrame } from "@react-three/fiber"
 import { Clouds, Cloud, CameraControls, Sky as SkyImpl, StatsGl } from "@react-three/drei"
-import { useControls } from "leva"
+import { useControls, folder } from "leva"
 
 export default function App() {
   return (
@@ -10,44 +10,63 @@ export default function App() {
       <Sky />
       <ambientLight intensity={Math.PI / 1.5} />
       <spotLight position={[0, 40, 0]} decay={0} distance={45} penumbra={1} intensity={100} />
-      <spotLight position={[-20, 0, 10]} color="red" angle={0.15} decay={0} penumbra={-1} intensity={30} />
-      <spotLight position={[20, -10, 10]} color="red" angle={0.2} decay={0} penumbra={-1} intensity={20} />
       <CameraControls />
     </Canvas>
   )
 }
 
-
 function Sky() {
   const ref = useRef()
   const cloud0 = useRef()
-  const { number, speed, color, x, y, z, range, windAngle, rain, storm, redLights, lightningFreq, lightningInt, boltColor, skyTop, skyBottom, customSky, ...config } = useControls({
-    number: { value: 20, min: 1, max: 100, step: 1 },
-    seed: { value: 1, min: 1, max: 100, step: 1 },
-    segments: { value: 20, min: 1, max: 80, step: 1 },
-    volume: { value: 10, min: 0, max: 100, step: 0.1 },
-    opacity: { value: 0.8, min: 0, max: 1, step: 0.01 },
-    fade: { value: 10, min: 0, max: 400, step: 1 },
-    growth: { value: 4, min: 0, max: 20, step: 1 },
-    speed: { value: 0.1, min: 0, max: 1, step: 0.01 },
-    x: { value: 50, min: 0, max: 100, step: 1 },
-    y: { value: 20, min: 0, max: 100, step: 1 },
-    z: { value: 50, min: 0, max: 100, step: 1 },
-    color: "white",
-    windAngle: { value: 0, min: 0, max: 360, step: 1 },
-    rain: { value: 0, min: 0, max: 1, step: 0.01 },
-    storm: { value: false },
-    redLights: { value: 0, min: 0, max: 50, step: 1 },
-    lightningFreq: { value: 0.5, min: 0, max: 1, step: 0.01 },
-    lightningInt: { value: 300, min: 100, max: 1000, step: 10 },
-    boltColor: "#ccccff",
-    customSky: { value: true },
-    skyTop: "#202020",
-    skyBottom: "#000000"
+
+  const {
+    // Atmosphere
+    number, cloudHeight, speed, x, y, z, range,
+    customSky, skyTop, skyBottom,
+    // Weather
+    storm, windAngle, rain,
+    // Lighting
+    redLights, boltColor, lightningFreq, lightningInt, boltHeightVar,
+    // Cloud Props
+    ...config
+  } = useControls({
+    "Atmosphere": folder({
+      number: { value: 20, min: 1, max: 100, step: 1 },
+      cloudHeight: { value: 50, min: 10, max: 150, step: 1 },
+      speed: { value: 0.1, min: 0, max: 5, step: 0.01 },
+      x: { value: 100, min: 10, max: 500, step: 1, label: "Spread X" },
+      y: { value: 20, min: 0, max: 100, step: 1, label: "Spread Y" },
+      z: { value: 100, min: 10, max: 500, step: 1, label: "Spread Z" },
+      range: { value: 20, min: 0, max: 100, step: 0.1 },
+      customSky: { value: true },
+      skyTop: "#202020",
+      skyBottom: "#000000"
+    }),
+    "Weather": folder({
+      storm: { value: false },
+      rain: { value: 0, min: 0, max: 1, step: 0.01 },
+      windAngle: { value: 0, min: 0, max: 360, step: 1 },
+    }),
+    "Lighting": folder({
+      redLights: { value: 0, min: 0, max: 50, step: 1, label: "Red Intensity" },
+      boltColor: "#ccccff",
+      lightningFreq: { value: 0.5, min: 0, max: 1, step: 0.01 },
+      lightningInt: { value: 300, min: 100, max: 1000, step: 10 },
+      boltHeightVar: { value: 20, min: 0, max: 50, step: 1, label: "Bolt H. Random" }
+    }),
+    "Cloud Props": folder({
+      seed: { value: 1, min: 1, max: 100, step: 1 },
+      segments: { value: 20, min: 1, max: 80, step: 1 },
+      volume: { value: 10, min: 0, max: 100, step: 0.1 },
+      opacity: { value: 0.8, min: 0, max: 1, step: 0.01 },
+      fade: { value: 10, min: 0, max: 400, step: 1 },
+      growth: { value: 4, min: 0, max: 20, step: 1 },
+      color: "white",
+    }, { collapsed: true })
   })
 
   // Adjust config based on storm
-  const finalColor = storm ? "#111111" : color // Darker clouds in storm
+  const finalColor = storm ? "#111111" : config.color
   const finalVolume = storm ? config.volume * 1.5 : config.volume
 
   // Logic to override red lights in storm to prevent red clouds
@@ -62,24 +81,30 @@ function Sky() {
       scale: 1 + Math.random(),
       seed: Math.random() * 100
     }))
-  }, [number, x, y, z, config.seed]) // Regenerate when number/bounds/seed changes at parent level
+  }, [number, x, y, z, config.seed])
 
   useFrame((state, delta) => {
     // Wind direction logic
     const angleRad = (windAngle * Math.PI) / 180
-    // Move clouds or rotate sky based on wind angle
-    // Using rotation for simplicity as per previous code, but directional
-    const xMove = Math.cos(angleRad) * speed * delta * 0.1
-    const zMove = Math.sin(angleRad) * speed * delta * 0.1
 
-    ref.current.rotation.y += xMove // Rotate the whole group
-    // Ideally we would move individual clouds, but group rotation is cheaper and was requested
+    // Move clouds or rotate sky based on wind angle
+    const xMove = Math.cos(angleRad) * speed * delta * 0.1
+    // const zMove = Math.sin(angleRad) * speed * delta * 0.1 
+
+    ref.current.rotation.y += xMove
   })
 
   return (
     <>
       {customSky ? <GradientSky top={skyTop} bottom={skyBottom} /> : <SkyImpl />}
-      <Lightning storm={storm} frequency={lightningFreq} intensity={lightningInt} color={boltColor} />
+      <Lightning
+        storm={storm}
+        frequency={lightningFreq}
+        intensity={lightningInt}
+        color={boltColor}
+        baseHeight={cloudHeight}
+        heightVar={boltHeightVar}
+      />
       <Rain intensity={rain} />
 
       <ambientLight intensity={Math.PI / 1.5} />
@@ -88,7 +113,6 @@ function Sky() {
       <spotLight position={[20, -10, 10]} color={spotColor} angle={0.2} decay={0} penumbra={-1} intensity={spotIntensity} />
 
       <group ref={ref}>
-        {/* Increased range and bounds to cover the sky */}
         <Clouds material={THREE.MeshLambertMaterial} limit={400} range={range}>
           {clouds.map((cloud, index) => (
             <Cloud
@@ -98,7 +122,7 @@ function Sky() {
               bounds={[x, y, z]}
               color={finalColor}
               seed={cloud.seed}
-              position={[cloud.x, 50, cloud.z]}
+              position={[cloud.x, cloudHeight, cloud.z]}
             />
           ))}
         </Clouds>
@@ -183,7 +207,7 @@ function Rain({ intensity }) {
   )
 }
 
-function Lightning({ storm, frequency, intensity, color }) {
+function Lightning({ storm, frequency, intensity, color, baseHeight, heightVar }) {
   const light = useRef()
   const [strike, setStrike] = useState(null)
 
@@ -198,13 +222,17 @@ function Lightning({ storm, frequency, intensity, color }) {
       const power = intensity + Math.random() * 200
       light.current.intensity = power
 
+      // Random height for this specific bolt
+      // Ensure baseHeight is valid, default to 50 if undefined
+      const h = (baseHeight || 50) + (Math.random() - 0.5) * (heightVar || 20)
+
       // Random position for flash
       const x = (Math.random() - 0.5) * 100
       const z = (Math.random() - 0.5) * 100
-      light.current.position.set(x, 50, z)
+      light.current.position.set(x, h, z)
 
       // Trigger visual bolt
-      setStrike({ x, z, alpha: 1.0 })
+      setStrike({ x, y: h, z, alpha: 1.0 })
     } else {
       // Fade out
       light.current.intensity = Math.max(0, light.current.intensity - 20)
@@ -219,9 +247,41 @@ function Lightning({ storm, frequency, intensity, color }) {
   return (
     <>
       <pointLight ref={light} position={[0, 100, 0]} intensity={0} distance={200} color={color} toneMapped={false} />
-      {strike && <LightningStrike start={[strike.x, 80, strike.z]} end={[strike.x + (Math.random() - 0.5) * 20, 0, strike.z + (Math.random() - 0.5) * 20]} color={color} opacity={strike.alpha} />}
+      {strike && (
+        <>
+          <LightningStrike start={[strike.x, strike.y + 30, strike.z]} end={[strike.x + (Math.random() - 0.5) * 20, 0, strike.z + (Math.random() - 0.5) * 20]} color={color} opacity={strike.alpha} />
+          {/* Soft Cloud Flash / Glow using Sprite */}
+          <sprite position={[strike.x, strike.y, strike.z]} scale={[60, 60, 1]}>
+            <spriteMaterial
+              color={color}
+              transparent
+              opacity={strike.alpha * 0.5}
+              depthWrite={false}
+              blending={THREE.AdditiveBlending}
+              map={getGlowTexture()}
+              toneMapped={false}
+            />
+          </sprite>
+        </>
+      )}
     </>
   )
+}
+
+let glowTexture = null
+function getGlowTexture() {
+  if (glowTexture) return glowTexture
+  const canvas = document.createElement("canvas")
+  canvas.width = 128
+  canvas.height = 128
+  const context = canvas.getContext("2d")
+  const gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64)
+  gradient.addColorStop(0, "rgba(255, 255, 255, 1)")
+  gradient.addColorStop(1, "rgba(255, 255, 255, 0)")
+  context.fillStyle = gradient
+  context.fillRect(0, 0, 128, 128)
+  glowTexture = new THREE.CanvasTexture(canvas)
+  return glowTexture
 }
 
 function LightningStrike({ start, end, color, opacity }) {
@@ -242,9 +302,8 @@ function LightningStrike({ start, end, color, opacity }) {
       pts.push(pos)
     }
     return pts
-  }, [start[0], start[2], end[0], end[2]]) // Re-generate only on new coordinates
+  }, [start[0], start[2], end[0], end[2], start[1]]) // Include Y in dependency
 
-  // Convert Vector3[] to a structure compatible with Line
   const geometry = useMemo(() => {
     const geo = new THREE.BufferGeometry().setFromPoints(points)
     return geo
