@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/clouds-threejs/static/css/main.6eac1dfb.css",
+    "main.js": "/clouds-threejs/static/js/main.db4fbf22.js",
+    "index.html": "/clouds-threejs/index.html",
+    "main.6eac1dfb.css.map": "/clouds-threejs/static/css/main.6eac1dfb.css.map",
+    "main.db4fbf22.js.map": "/clouds-threejs/static/js/main.db4fbf22.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.6eac1dfb.css",
+    "static/js/main.db4fbf22.js"
+  ]
+}
