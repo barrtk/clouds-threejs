@@ -25,9 +25,9 @@ function Sky() {
     cloudWidth, cloudLength, cloudDepth,
     customSky, skyTop, skyBottom,
     // Weather
-    storm, windAngle, rain, rainHeight,
+    storm, windAngle, rain, rainHeight, rainSpread, rainX, rainZ,
     // Lighting
-    redLights, boltColor, lightningFreq, lightningInt, boltHeightVar, boltOffset,
+    redLights, boltColor, lightningFreq, lightningInt, boltHeightVar, boltOffset, flashScale,
     // Cloud Props
     ...config
   } = useControls({
@@ -59,6 +59,9 @@ function Sky() {
       storm: { value: false },
       rain: { value: 0, min: 0, max: 1, step: 0.01 },
       rainHeight: { value: 175, min: 10, max: 200, step: 1 },
+      rainSpread: { value: 100, min: 10, max: 500, step: 10, label: "Rain Spread" },
+      rainX: { value: 0, min: -200, max: 200, step: 1, label: "Rain Pos X" },
+      rainZ: { value: 0, min: -200, max: 200, step: 1, label: "Rain Pos Z" },
       windAngle: { value: 105, min: 0, max: 360, step: 1 },
     }),
     "Lighting": folder({
@@ -67,7 +70,8 @@ function Sky() {
       lightningFreq: { value: 0.5, min: 0, max: 1, step: 0.01 },
       lightningInt: { value: 300, min: 100, max: 1000, step: 10 },
       boltHeightVar: { value: 20, min: 0, max: 50, step: 1, label: "Bolt H. Random" },
-      boltOffset: { value: -45, min: -50, max: 50, step: 1, label: "Bolt Offset Y" }
+      boltOffset: { value: -45, min: -50, max: 50, step: 1, label: "Bolt Offset Y" },
+      flashScale: { value: 1, min: 0, max: 10, step: 0.1, label: "Cloud Flash Scale" }
     }),
     "System": folder({
       "Export JSON": button((get) => {
@@ -118,7 +122,7 @@ function Sky() {
           .catch(() => alert("Failed to copy."))
       })
     })
-  }, [number, cloudHeight, speed, spreadX, spreadY, spreadZ, cloudWidth, cloudLength, cloudDepth, storm, windAngle, rain, rainHeight, redLights, boltColor, boltOffset])
+  }, [number, cloudHeight, speed, spreadX, spreadY, spreadZ, cloudWidth, cloudLength, cloudDepth, storm, windAngle, rain, rainHeight, rainSpread, rainX, rainZ, redLights, boltColor, boltOffset])
   // Dependency array ensures button callback has fresh closure values? Leva button might not update callback closure.
   // Actually, leva button callback is often static. 
   // Correct pattern: Use a Ref to hold current config, update it on every render. Button reads Ref.
@@ -128,8 +132,8 @@ function Sky() {
     number, cloudHeight, speed, spreadX, spreadY, spreadZ, drawDistance,
     cloudWidth, cloudLength, cloudDepth,
     customSky, skyTop, skyBottom,
-    storm, windAngle, rain, rainHeight,
-    redLights, boltColor, lightningFreq, lightningInt, boltHeightVar, boltOffset,
+    storm, windAngle, rain, rainHeight, rainSpread, rainX, rainZ,
+    redLights, boltColor, lightningFreq, lightningInt, boltHeightVar, boltOffset, flashScale,
     ...config
   }
 
@@ -187,8 +191,9 @@ function Sky() {
         baseHeight={cloudHeight}
         heightVar={boltHeightVar}
         heightOffset={boltOffset}
+        flashScale={flashScale}
       />
-      <Rain intensity={rain} top={rainHeight} />
+      <Rain intensity={rain} top={rainHeight} spread={rainSpread} x={rainX} z={rainZ} />
 
       <ambientLight intensity={Math.PI / 1.5} />
       <spotLight position={[0, 40, 0]} decay={0} distance={45} penumbra={1} intensity={100} />
@@ -246,17 +251,17 @@ function GradientSky({ top, bottom }) {
   )
 }
 
-function Rain({ intensity, top = 60 }) {
+function Rain({ intensity, top = 60, spread = 100, x = 0, z = 0 }) {
   const count = 1000
   const rainGeo = useMemo(() => {
     const positions = new Float32Array(count * 3)
     for (let i = 0; i < count; i++) {
-      positions[i * 3] = (Math.random() - 0.5) * 100 // x
+      positions[i * 3] = x + (Math.random() - 0.5) * spread // x
       positions[i * 3 + 1] = Math.random() * top // y (height)
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 100 // z
+      positions[i * 3 + 2] = z + (Math.random() - 0.5) * spread // z
     }
     return positions
-  }, [top])
+  }, [top, spread, x, z])
 
   const ref = useRef()
   useFrame((state, delta) => {
@@ -290,7 +295,7 @@ function Rain({ intensity, top = 60 }) {
   )
 }
 
-function Lightning({ storm, frequency, intensity, color, baseHeight, heightVar, heightOffset }) {
+function Lightning({ storm, frequency, intensity, color, baseHeight, heightVar, heightOffset, flashScale = 1 }) {
   const light = useRef()
   const [strike, setStrike] = useState(null)
 
@@ -315,7 +320,7 @@ function Lightning({ storm, frequency, intensity, color, baseHeight, heightVar, 
       light.current.position.set(x, h, z)
 
       // Trigger visual bolt
-      setStrike({ x, y: h, z, alpha: 1.0 })
+      setStrike({ x, y: h, z, alpha: 1.0, noise: 0.5 + Math.random() })
     } else {
       // Fade out
       light.current.intensity = Math.max(0, light.current.intensity - 20)
@@ -338,7 +343,7 @@ function Lightning({ storm, frequency, intensity, color, baseHeight, heightVar, 
             <spriteMaterial
               color={color}
               transparent
-              opacity={strike.alpha * 0.5}
+              opacity={strike.alpha * 0.5 * flashScale * strike.noise}
               depthWrite={false}
               blending={THREE.AdditiveBlending}
               map={getGlowTexture()}
